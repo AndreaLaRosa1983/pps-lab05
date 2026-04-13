@@ -1,7 +1,9 @@
 package it.unibo.pps.ex
 
+import it.unibo.pps.util.Optionals.Optional.*
 import it.unibo.pps.util.Optionals.Optional
-import it.unibo.pps.util.Sequences.* // Assuming Sequence and related methods are here
+import it.unibo.pps.util.Sequences.Sequence
+import it.unibo.pps.util.Sequences.Sequence.* // Assuming Sequence and related methods are here
 
 // Represents a course offered on the platform
 trait Course:
@@ -11,8 +13,15 @@ trait Course:
   def category: String // e.g., "Programming", "Data Science", "Design"
 
 object Course:
-  // Factory method for creating Course instances
-  def apply(courseId: String, title: String, instructor: String, category: String): Course = ???
+  private case class CourseImpl(
+                                 courseId: String,
+                                 title: String,
+                                 instructor: String,
+                                 category: String
+                               ) extends Course
+
+  def apply(courseId: String, title: String, instructor: String, category: String): Course =
+    CourseImpl(courseId, title, instructor, category)
 /**
  * Manages courses and student enrollments on an online learning platform.
  */
@@ -85,8 +94,43 @@ trait OnlineCoursePlatform:
 end OnlineCoursePlatform
 
 object OnlineCoursePlatform:
-  // Factory method for creating an empty platform instance
-  def apply(): OnlineCoursePlatform = ??? // Fill Here!
+  private case class PlatformImpl() extends OnlineCoursePlatform:
+    private var courses: Sequence[Course] = Sequence.empty
+    private var enrollments: Sequence[(String, String)] = Sequence.empty
+
+    override def addCourse(course: Course): Unit =
+      courses = Cons(course, courses)
+
+    override def findCoursesByCategory(category: String): Sequence[Course] =
+      this.courses.filter(_.category == category)
+
+    override def getCourse(courseId: String): Optional[Course] =
+      this.courses.find(_.courseId == courseId)
+
+    override def removeCourse(course: Course): Unit =
+      courses = this.courses.filter(_.courseId != course.courseId)
+
+    override def isCourseAvailable(courseId: String): Boolean =
+      this.courses.find(course => course.courseId == courseId).map(_ => true).orElse(false)
+
+    override def enrollStudent(studentId: String, courseId: String): Unit =
+      if isCourseAvailable(courseId) && !isStudentEnrolled(studentId, courseId) then
+        enrollments = Cons((studentId, courseId), enrollments)
+
+    override def unenrollStudent(studentId: String, courseId: String): Unit =
+      enrollments = enrollments.filter((s, c) => !(s == studentId && c == courseId))
+
+    override def getStudentEnrollments(studentId: String): Sequence[Course] =
+        enrollments
+          .filter((s, _) => s == studentId)
+          .flatMap((_, courseId) => getCourse(courseId) match
+            case Just(c) => Cons(c, Nil())
+            case _ => Nil())
+
+    override def isStudentEnrolled(studentId: String, courseId: String): Boolean =
+      enrollments.find((s, c) => s == studentId && c == courseId).map(_ => true).orElse(false)
+
+  def apply(): OnlineCoursePlatform = PlatformImpl()
 
 /**
  * Represents an online learning platform that offers courses and manages student enrollments.
